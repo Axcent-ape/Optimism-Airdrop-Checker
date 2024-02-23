@@ -1,31 +1,35 @@
 import asyncio
-from urllib import parse as urllib
 import aiohttp
 import random
+from fake_useragent import UserAgent
 
 
 class CheckEligible:
     def __init__(self, thread: int):
         self.thread = thread
-        self.session = aiohttp.ClientSession(trust_env=True)
+
+        headers = {"User-Agent": UserAgent().random}
+        self.session = aiohttp.ClientSession(trust_env=True, headers=headers)
 
     async def check_eligible(self):
         address = self.get_wallet()
         if address:
-            str_dict = f'{{"0":{{"json":{{"chainId":10,"address":"{address}","id":"4"}}}},"1":{{"json":{{"address":"{address}"}}}}}}'
-
-            percent_unicode = urllib.quote(str_dict.encode('utf-8'))
-            url = f'https://prod-gateway-backend-mainnet.optimism.io/api/v0/eligibility.eligibilityAmounts,screenaddressv2.checkAddress?batch=1&input={percent_unicode}'
+            url = f'https://backend.smartlayer.network/airdrop/homebrew-eligibility?address={address}&withProof=true'
 
             resp = await self.session.get(url)
             resp_json = await resp.json()
+            # print(resp_json)
 
-            if resp_json and resp_json[0]["result"]["data"]["json"] is not None:
-                res_text = f'{address}:{round(int(resp_json[0]["result"]["data"]["json"]["totalAmount"]) / 1e18, 2)}'
-                with open('eligible.txt', 'a') as f:
-                    f.write(f'\n{res_text}')
-                print(f'{self.thread} | {res_text}')
+            if resp_json:
+                if resp_json['eligible']:
+                    res_text = f'{address}:{round(int(resp_json["details"]["amount"]) / 1e18, 2)}'
+                    with open('eligible.txt', 'a') as f:
+                        f.write(f'\n{res_text}')
+                    print(f'{self.thread} | {res_text}')
 
+
+                else:
+                    print(f'{self.thread} | Не eligible: {address}')
             return True
         return False
 
